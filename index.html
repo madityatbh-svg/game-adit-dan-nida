@@ -1,0 +1,820 @@
+```html
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ular Tangga Truth or Dare Multiplayer</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- PeerJS WebRTC Library -->
+    <script src="https://unpkg.peerjs.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap');
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        .board-grid {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            grid-template-rows: repeat(10, 1fr);
+            aspect-ratio: 1 / 1;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(245, 158, 11, 0.5);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between p-2 sm:p-4">
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-amber-400 text-slate-950 font-black px-5 py-2.5 rounded-2xl shadow-2xl flex items-center gap-2 transition-all duration-300 opacity-0 pointer-events-none translate-y-[-20px]">
+        <i class="fa-solid fa-circle-info"></i>
+        <span id="toast-text">Pesan pemberitahuan</span>
+    </div>
+
+    <!-- Modal Truth or Dare -->
+    <div id="tod-modal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-slate-900 border-2 border-amber-400 rounded-3xl max-w-md w-full p-6 text-center space-y-4 shadow-2xl animate-bounce-short">
+            <div class="inline-block p-3 bg-amber-500/20 text-amber-400 rounded-full border border-amber-400/40">
+                <i class="fa-solid fa-fire-flame-curved text-4xl"></i>
+            </div>
+            <div>
+                <span id="tod-type-badge" class="text-[11px] font-black uppercase tracking-widest px-3 py-1 bg-gradient-to-r from-red-500 to-amber-500 text-white rounded-full">
+                    TRUTH
+                </span>
+                <h3 class="text-xl font-black text-white pt-3">Tantangan untuk <span id="tod-player-name" class="text-amber-400">Pemain</span>!</h3>
+            </div>
+            <div id="tod-text" class="p-4 bg-slate-950 rounded-2xl border border-slate-800 text-sm font-semibold text-slate-100 leading-relaxed min-h-[90px] flex items-center justify-center">
+                Pertanyaan tantangan akan muncul di sini...
+            </div>
+            <button id="btn-close-tod" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 rounded-xl text-xs uppercase tracking-wider transition shadow-lg">
+                Saya Sudah Selesaikan Tantangan!
+            </button>
+        </div>
+    </div>
+
+    <!-- HEADER -->
+    <header class="w-full max-w-6xl mx-auto flex justify-between items-center bg-slate-900/90 border border-slate-800 rounded-2xl p-3 mb-3 shadow-xl">
+        <div class="flex items-center gap-3">
+            <div class="bg-gradient-to-tr from-amber-500 to-red-500 p-2.5 rounded-xl text-white shadow-lg">
+                <i class="fa-solid fa-wand-magic-sparkles text-xl"></i>
+            </div>
+            <div>
+                <h1 class="font-black text-base sm:text-xl tracking-wider bg-gradient-to-r from-amber-400 to-red-400 bg-clip-text text-transparent">
+                    ULAR TANGGA ToD
+                </h1>
+                <p class="text-[10px] sm:text-xs text-slate-400">Online P2P + Voice Call</p>
+            </div>
+        </div>
+
+        <div id="room-header-info" class="hidden flex items-center gap-2 sm:gap-3">
+            <div class="flex items-center bg-slate-950 border border-amber-500/40 px-3 py-1.5 rounded-xl text-xs sm:text-sm">
+                <span class="text-slate-400 mr-2 hidden sm:inline">Room:</span>
+                <span id="display-room-code" class="font-black text-amber-400 tracking-widest mr-2">---</span>
+                <button id="btn-copy-room" class="p-1 hover:bg-slate-800 rounded-lg transition text-slate-300" title="Salin Kode Room">
+                    <i class="fa-regular fa-copy"></i>
+                </button>
+            </div>
+            <button id="btn-leave-room" class="bg-red-500/20 hover:bg-red-500/30 text-red-400 p-2 rounded-xl transition border border-red-500/30 text-xs flex items-center gap-1 font-bold">
+                <i class="fa-solid fa-right-from-bracket"></i>
+                <span class="hidden sm:inline">Keluar</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- SCREEN 1: LOBBY -->
+    <main id="screen-lobby" class="w-full max-w-md mx-auto my-auto bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-6">
+        <div class="text-center space-y-2">
+            <div class="inline-block p-4 bg-gradient-to-br from-amber-500/20 to-red-500/20 rounded-full border border-amber-500/30 mb-1">
+                <i class="fa-solid fa-dice text-4xl text-amber-400"></i>
+            </div>
+            <h2 class="text-2xl font-black text-white">Main Bersama Teman!</h2>
+            <p class="text-slate-400 text-xs">Ular Tangga + Truth or Dare jarak jauh super gampang.</p>
+        </div>
+
+        <div class="space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-slate-300 uppercase mb-1">Nama Kamu</label>
+                <input id="input-player-name" type="text" placeholder="Masukkan Namamu..." maxLength="15" 
+                       class="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-4 py-3 text-white outline-none transition font-semibold">
+            </div>
+
+            <!-- Buat Room -->
+            <div class="bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-3">
+                <h3 class="font-bold text-xs text-amber-400 flex items-center gap-1.5 uppercase tracking-wider">
+                    <i class="fa-solid fa-plus-circle"></i> Buat Room Baru
+                </h3>
+                <div class="flex gap-2">
+                    <input id="input-custom-room" type="text" placeholder="Kode Room (misal: SERU1)" 
+                           class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white uppercase tracking-wider outline-none">
+                    <button id="btn-create-room" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs whitespace-nowrap transition shadow-lg">
+                        Buat Room
+                    </button>
+                </div>
+            </div>
+
+            <div class="relative flex py-1 items-center">
+                <div class="flex-grow border-t border-slate-800"></div>
+                <span class="flex-shrink mx-4 text-slate-600 text-xs font-black">ATAU</span>
+                <div class="flex-grow border-t border-slate-800"></div>
+            </div>
+
+            <!-- Gabung Room -->
+            <div class="bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-3">
+                <h3 class="font-bold text-xs text-emerald-400 flex items-center gap-1.5 uppercase tracking-wider">
+                    <i class="fa-solid fa-users"></i> Gabung Room Teman
+                </h3>
+                <div class="flex gap-2">
+                    <input id="input-join-room" type="text" placeholder="KODE ROOM" 
+                           class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white uppercase tracking-widest outline-none font-bold">
+                    <button id="btn-join-room" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-5 py-2 rounded-xl text-xs whitespace-nowrap transition shadow-lg">
+                        Gabung
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- SCREEN 2: GAMEPLAY ARENA -->
+    <main id="screen-game" class="hidden w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-4 my-auto">
+        
+        <!-- PANEL KIRI: Pemain & Kontrol -->
+        <div class="lg:col-span-1 space-y-4 order-2 lg:order-1">
+            <!-- List Pemain -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md space-y-3">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <h3 class="font-bold text-xs text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-users text-amber-400"></i> Pemain Dalam Room
+                    </h3>
+                </div>
+                <div id="players-list" class="space-y-2 max-h-40 overflow-y-auto pr-1 custom-scrollbar">
+                    <!-- Dynamic Players List -->
+                </div>
+                <button id="btn-start-game" class="hidden w-full bg-gradient-to-r from-amber-500 to-red-500 hover:from-amber-400 hover:to-red-400 text-slate-950 font-black py-2.5 rounded-xl text-xs uppercase tracking-wider transition shadow-lg flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-play"></i> Mulai Game Now!
+                </button>
+            </div>
+
+            <!-- Voice Call Widget & Dadu -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md space-y-4">
+                <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <div id="voice-icon-bg" class="p-2 rounded-lg bg-slate-800 text-slate-500">
+                            <i class="fa-solid fa-phone text-sm"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-xs font-bold text-slate-200">Voice Call</h4>
+                            <p id="voice-status-text" class="text-[10px] text-slate-400">Terputus</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <button id="btn-toggle-mute" class="hidden p-2 rounded-lg text-xs font-bold bg-slate-800 text-slate-400">
+                            <i id="mute-icon" class="fa-solid fa-microphone"></i>
+                        </button>
+                        <button id="btn-toggle-voice" class="px-3 py-1.5 rounded-lg text-xs font-black bg-emerald-500 text-slate-950 transition">
+                            Masuk
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Area Lempar Dadu -->
+                <div id="dice-container" class="text-center space-y-3 pt-1">
+                    <div class="flex justify-center items-center">
+                        <div id="dice-box" class="w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 text-slate-950 rounded-2xl flex items-center justify-center font-black text-3xl shadow-2xl border-2 border-amber-200">
+                            1
+                        </div>
+                    </div>
+                    <button id="btn-roll-dice" disabled class="w-full bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black py-3 rounded-xl text-xs uppercase tracking-wider transition shadow-xl opacity-50 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-dice"></i> LEMPAR DADU!
+                    </button>
+                    <div id="turn-indicator" class="p-2.5 bg-slate-950 rounded-xl border border-slate-800 text-xs text-slate-300 font-semibold">
+                        Menunggu Giliran...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PANEL TENGAH: Papan 10x10 -->
+        <div class="lg:col-span-2 order-1 lg:order-2 flex flex-col items-center">
+            <div class="w-full bg-slate-900 border-2 border-amber-500/30 rounded-3xl p-2 sm:p-3 shadow-2xl relative">
+                <div id="board-grid" class="board-grid bg-slate-950 p-1 rounded-2xl w-full gap-0.5">
+                    <!-- Generated 100 tiles dynamically -->
+                </div>
+            </div>
+        </div>
+
+        <!-- PANEL KANAN: Chat Room -->
+        <div class="lg:col-span-1 space-y-4 order-3">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md flex flex-col h-[450px]">
+                <h3 class="font-bold text-xs text-slate-300 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-2 mb-3">
+                    <i class="fa-solid fa-comments text-emerald-400"></i> Live Chat Room
+                </h3>
+                <div id="chat-messages" class="flex-1 overflow-y-auto space-y-2 pr-1 mb-3 text-xs custom-scrollbar">
+                    <!-- Dynamic Messages -->
+                </div>
+                <form id="chat-form" class="flex gap-2">
+                    <input id="chat-input" type="text" placeholder="Ketik pesan..." 
+                           class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-emerald-400">
+                    <button type="submit" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-3 py-2 rounded-xl text-xs transition">
+                        Kirim
+                    </button>
+                </form>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- SCRIPT LOGIKA UTAMA -->
+    <script>
+        // Pemetaan Ular & Tangga
+        const SNAKES = { 99: 78, 95: 56, 92: 35, 87: 24, 64: 60, 62: 19, 54: 36, 17: 7 };
+        const LADDERS = { 4: 14, 9: 31, 20: 38, 28: 84, 40: 59, 51: 67, 63: 81, 71: 91 };
+
+        // Pertanyaan Truth & Tantangan Dare
+        const TRUTH_LIST = [
+            "Apa hal paling memalukan yang pernah kamu lakukan di depan umum?",
+            "Siapa chat terakhir yang kamu hapus dan kenapa?",
+            "Pernahkah kamu menyukai pacar/gebetan teman sendiri?",
+            "Apa rahasia terbesar yang belum pernah kamu ceritakan ke siapapun?",
+            "Apa kebiasaan aneh kamu saat sedang sendirian di kamar?",
+            "Siapa orang di antara pemain ini yang paling ingin kamu ajak jalan?",
+            "Kapan terakhir kali kamu berbohong dan apa alasannya?"
+        ];
+
+        const DARE_LIST = [
+            "Kirim pesan suara (voice note) ke kontak acak bilang 'Aku kangen'!",
+            "Biarkan pemain lain memberikan tantangan gaya foto untuk status kamu!",
+            "Bicara dengan logat daerah selama 2 putaran!",
+            "Nyanyikan reff lagu populer dengan penuh penghayatan sekarang!",
+            "Tiru ekspresi paling konyol yang kamu bisa selama 10 detik!",
+            "Tirukan suara hewan pilihan teman-temanmu selama 30 detik!"
+        ];
+
+        const PLAYER_COLORS = [
+            { name: 'Merah', bg: 'bg-red-500' },
+            { name: 'Biru', bg: 'bg-blue-500' },
+            { name: 'Hijau', bg: 'bg-emerald-500' },
+            { name: 'Kuning', bg: 'bg-amber-400' },
+            { name: 'Ungu', bg: 'bg-purple-500' },
+            { name: 'Pink', bg: 'bg-pink-500' }
+        ];
+
+        // Global Game State
+        let peer = null;
+        let connections = []; // Untuk Host menyimpan list koneksi
+        let hostConn = null;   // Untuk Client menyimpan koneksi ke Host
+        let isHost = false;
+        let myId = '';
+        let myName = '';
+        let currentRoomCode = '';
+
+        let gameState = {
+            status: 'waiting', // waiting, playing, finished
+            players: [],
+            currentTurnIndex: 0,
+            lastDiceRoll: 1
+        };
+
+        // Voice State
+        let localStream = null;
+        let isVoiceConnected = false;
+        let isMuted = false;
+        let peerCalls = {};
+
+        // DOM Elements
+        const toastEl = document.getElementById('toast');
+        const toastTextEl = document.getElementById('toast-text');
+        const screenLobby = document.getElementById('screen-lobby');
+        const screenGame = document.getElementById('screen-game');
+        const roomHeaderInfo = document.getElementById('room-header-info');
+        const displayRoomCode = document.getElementById('display-room-code');
+
+        const inputPlayerName = document.getElementById('input-player-name');
+        const inputCustomRoom = document.getElementById('input-custom-room');
+        const inputJoinRoom = document.getElementById('input-join-room');
+        const btnCreateRoom = document.getElementById('btn-create-room');
+        const btnJoinRoom = document.getElementById('btn-join-room');
+
+        const boardGrid = document.getElementById('board-grid');
+        const playersList = document.getElementById('players-list');
+        const btnStartGame = document.getElementById('btn-start-game');
+        const btnRollDice = document.getElementById('btn-roll-dice');
+        const diceBox = document.getElementById('dice-box');
+        const turnIndicator = document.getElementById('turn-indicator');
+
+        const chatMessages = document.getElementById('chat-messages');
+        const chatForm = document.getElementById('chat-form');
+        const chatInput = document.getElementById('chat-input');
+
+        const todModal = document.getElementById('tod-modal');
+        const todTypeBadge = document.getElementById('tod-type-badge');
+        const todPlayerName = document.getElementById('tod-player-name');
+        const todText = document.getElementById('tod-text');
+        const btnCloseTod = document.getElementById('btn-close-tod');
+
+        // Initial Load Saved Name
+        const savedName = localStorage.getItem('tod_player_name');
+        if (savedName) inputPlayerName.value = savedName;
+
+        function showToast(msg) {
+            toastTextEl.innerText = msg;
+            toastEl.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-[-20px]');
+            setTimeout(() => {
+                toastEl.classList.add('opacity-0', 'pointer-events-none', 'translate-y-[-20px]');
+            }, 3000);
+        }
+
+        function formatRoomCode(raw) {
+            return raw.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+        }
+
+        // Render Papan 10x10 Zigzag
+        function buildBoardGrid() {
+            boardGrid.innerHTML = '';
+            for (let row = 9; row >= 0; row--) {
+                const isEvenRow = (9 - row) % 2 === 1;
+                for (let col = 0; col < 10; col++) {
+                    const tileNum = isEvenRow ? (row * 10) + (10 - col) : (row * 10) + (col + 1);
+                    const isSnakeHead = SNAKES[tileNum] !== undefined;
+                    const isLadderBase = LADDERS[tileNum] !== undefined;
+
+                    const tile = document.createElement('div');
+                    tile.id = `tile-${tileNum}`;
+                    tile.className = `relative border border-amber-900/20 flex flex-col justify-between p-1 select-none min-h-[40px] sm:min-h-[50px] ${
+                        (row + col) % 2 === 0 ? 'bg-amber-100/90' : 'bg-orange-100/90'
+                    } ${isSnakeHead ? 'bg-red-200 ring-2 ring-red-500 ring-inset' : ''} ${
+                        isLadderBase ? 'bg-emerald-200 ring-2 ring-emerald-500 ring-inset' : ''
+                    }`;
+
+                    tile.innerHTML = `
+                        <div class="flex justify-between items-center text-[9px] sm:text-xs font-black text-slate-700">
+                            <span>${tileNum}</span>
+                            ${isSnakeHead ? '<span>🐍</span>' : ''}
+                            ${isLadderBase ? '<span>🪜</span>' : ''}
+                        </div>
+                        <div class="text-[8px] font-bold leading-tight">
+                            ${isSnakeHead ? `<span class="text-red-600">⬇${SNAKES[tileNum]}</span>` : ''}
+                            ${isLadderBase ? `<span class="text-emerald-700">⬆${LADDERS[tileNum]}</span>` : ''}
+                        </div>
+                        <div id="pawns-container-${tileNum}" class="flex flex-wrap gap-0.5 justify-center items-center my-auto"></div>
+                    `;
+                    boardGrid.appendChild(tile);
+                }
+            }
+        }
+        buildBoardGrid();
+
+        // Broadcast Data dari Host ke Semua Client
+        function broadcastState() {
+            if (!isHost) return;
+            renderUI();
+            connections.forEach(conn => {
+                if (conn && conn.open) {
+                    conn.send({ type: 'SYNC_STATE', state: gameState });
+                }
+            });
+        }
+
+        function addChatMessage(sender, text, isSystem = false) {
+            const msgDiv = document.createElement('div');
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            
+            if (isSystem) {
+                msgDiv.className = 'p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] italic';
+                msgDiv.innerText = `[${time}] ${text}`;
+            } else {
+                msgDiv.className = 'p-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-300';
+                msgDiv.innerHTML = `
+                    <div class="flex justify-between font-bold text-[9px] text-slate-500 mb-0.5">
+                        <span>${sender}</span>
+                        <span>${time}</span>
+                    </div>
+                    <p class="break-words">${text}</p>
+                `;
+            }
+            chatMessages.appendChild(msgDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Update Tampilan UI berdasarkan GameState
+        function renderUI() {
+            // Render List Pemain
+            playersList.innerHTML = '';
+            gameState.players.forEach((p, idx) => {
+                const isTurn = gameState.currentTurnIndex === idx && gameState.status === 'playing';
+                const pEl = document.createElement('div');
+                pEl.className = `flex items-center justify-between p-2 rounded-xl border transition ${
+                    isTurn ? 'bg-amber-500/10 border-amber-500/50 text-white' : 'bg-slate-950 border-slate-800 text-slate-300'
+                }`;
+                pEl.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <div class="w-3.5 h-3.5 rounded-full ${p.color.bg}"></div>
+                        <span class="font-bold text-xs truncate max-w-[100px]">${p.name} ${p.id === myId ? '(Kamu)' : ''}</span>
+                    </div>
+                    <span class="text-xs font-black text-amber-400">Petak ${p.position}</span>
+                `;
+                playersList.appendChild(pEl);
+            });
+
+            // Update Pion di Papan
+            for (let i = 1; i <= 100; i++) {
+                const container = document.getElementById(`pawns-container-${i}`);
+                if (container) container.innerHTML = '';
+            }
+
+            gameState.players.forEach((p) => {
+                const container = document.getElementById(`pawns-container-${p.position}`);
+                if (container) {
+                    const pawn = document.createElement('div');
+                    pawn.className = `w-4 h-4 sm:w-5 sm:h-5 rounded-full ${p.color.bg} text-white font-extrabold text-[9px] flex items-center justify-center shadow-md border border-white animate-bounce-short`;
+                    pawn.innerText = p.name.charAt(0).toUpperCase();
+                    container.appendChild(pawn);
+                }
+            });
+
+            // Update Dadu & Giliran
+            diceBox.innerText = gameState.lastDiceRoll;
+            const currentPlayer = gameState.players[gameState.currentTurnIndex];
+            
+            if (gameState.status === 'playing') {
+                if (currentPlayer) {
+                    if (currentPlayer.id === myId) {
+                        turnIndicator.innerHTML = `<span class="text-emerald-400 font-bold">Giliranmu! Silakan lempar dadu.</span>`;
+                        btnRollDice.disabled = false;
+                        btnRollDice.classList.remove('opacity-50');
+                    } else {
+                        turnIndicator.innerHTML = `Giliran: <span class="text-amber-400 font-bold">${currentPlayer.name}</span>`;
+                        btnRollDice.disabled = true;
+                        btnRollDice.classList.add('opacity-50');
+                    }
+                }
+            } else if (gameState.status === 'waiting') {
+                turnIndicator.innerHTML = `Menunggu permainan dimulai...`;
+                btnRollDice.disabled = true;
+                btnRollDice.classList.add('opacity-50');
+            }
+
+            if (isHost && gameState.status === 'waiting') {
+                btnStartGame.classList.remove('hidden');
+            } else {
+                btnStartGame.classList.add('hidden');
+            }
+        }
+
+        // BUAT ROOM (HOST)
+        btnCreateRoom.addEventListener('click', () => {
+            myName = inputPlayerName.value.trim();
+            if (!myName) {
+                showToast("Masukkan namamu dulu!");
+                return;
+            }
+            localStorage.setItem('tod_player_name', myName);
+
+            let customCode = formatRoomCode(inputCustomRoom.value);
+            if (!customCode) {
+                customCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+            }
+
+            currentRoomCode = customCode;
+            const peerId = `TODROOM_${customCode}`;
+
+            peer = new Peer(peerId);
+
+            peer.on('open', (id) => {
+                isHost = true;
+                myId = id;
+                gameState.players = [{
+                    id: myId,
+                    name: myName,
+                    position: 1,
+                    color: PLAYER_COLORS[0]
+                }];
+                
+                displayRoomCode.innerText = currentRoomCode;
+                screenLobby.classList.add('hidden');
+                screenGame.classList.remove('hidden');
+                roomHeaderInfo.classList.remove('hidden');
+                
+                renderUI();
+                addChatMessage('Sistem', `Room "${currentRoomCode}" berhasil dibuat! Bagikan kode ini ke temanmu.`, true);
+                showToast(`Room ${currentRoomCode} Siap!`);
+            });
+
+            peer.on('connection', (conn) => {
+                connections.push(conn);
+                conn.on('data', (data) => handleHostReceiveData(data, conn));
+                conn.on('close', () => {
+                    connections = connections.filter(c => c !== conn);
+                });
+            });
+
+            peer.on('call', (call) => {
+                if (localStream) call.answer(localStream);
+                call.on('stream', (remoteStream) => playAudio(call.peer, remoteStream));
+            });
+
+            peer.on('error', (err) => {
+                console.error(err);
+                if (err.type === 'unavailable-id') {
+                    showToast(`Kode room "${customCode}" sudah terpakai! Gunakan kode lain.`);
+                } else {
+                    showToast("Gagal membuat room. Coba lagi.");
+                }
+            });
+        });
+
+        // GABUNG ROOM (CLIENT)
+        btnJoinRoom.addEventListener('click', () => {
+            myName = inputPlayerName.value.trim();
+            const targetCode = formatRoomCode(inputJoinRoom.value);
+            
+            if (!myName) {
+                showToast("Masukkan namamu dulu!");
+                return;
+            }
+            if (!targetCode) {
+                showToast("Masukkan Kode Room!");
+                return;
+            }
+            localStorage.setItem('tod_player_name', myName);
+
+            currentRoomCode = targetCode;
+            peer = new Peer();
+
+            peer.on('open', (id) => {
+                myId = id;
+                const hostPeerId = `TODROOM_${targetCode}`;
+                hostConn = peer.connect(hostPeerId);
+
+                hostConn.on('open', () => {
+                    hostConn.send({ type: 'JOIN_ROOM', name: myName, id: myId });
+                    
+                    displayRoomCode.innerText = currentRoomCode;
+                    screenLobby.classList.add('hidden');
+                    screenGame.classList.remove('hidden');
+                    roomHeaderInfo.classList.remove('hidden');
+                    showToast("Terhubung ke Host!");
+                });
+
+                hostConn.on('data', (data) => handleClientReceiveData(data));
+                hostConn.on('close', () => {
+                    showToast("Koneksi ke Host terputus.");
+                });
+            });
+
+            peer.on('call', (call) => {
+                if (localStream) call.answer(localStream);
+                call.on('stream', (remoteStream) => playAudio(call.peer, remoteStream));
+            });
+
+            peer.on('error', (err) => {
+                console.error(err);
+                showToast("Gagal terhubung. Cek kembali Kode Room!");
+            });
+        });
+
+        // Handler Data di Host
+        function handleHostReceiveData(data, conn) {
+            if (data.type === 'JOIN_ROOM') {
+                if (gameState.players.length >= 6) {
+                    conn.send({ type: 'ERROR', message: 'Room Sudah Penuh!' });
+                    return;
+                }
+                const colorIdx = gameState.players.length % PLAYER_COLORS.length;
+                const newPlayer = {
+                    id: data.id,
+                    name: data.name,
+                    position: 1,
+                    color: PLAYER_COLORS[colorIdx]
+                };
+                gameState.players.push(newPlayer);
+                broadcastState();
+                addChatMessage('Sistem', `${data.name} bergabung ke room.`, true);
+            }
+            else if (data.type === 'ROLL_DICE') {
+                processDiceRoll(data.playerId);
+            }
+            else if (data.type === 'SEND_CHAT') {
+                addChatMessage(data.sender, data.text);
+                connections.forEach(c => c.send({ type: 'CHAT', sender: data.sender, text: data.text }));
+            }
+        }
+
+        // Handler Data di Client
+        function handleClientReceiveData(data) {
+            if (data.type === 'SYNC_STATE') {
+                gameState = data.state;
+                renderUI();
+            }
+            else if (data.type === 'CHAT') {
+                addChatMessage(data.sender, data.text);
+            }
+            else if (data.type === 'TRIGGER_TOD') {
+                openTodModal(data.player, data.todType, data.todText);
+            }
+            else if (data.type === 'ERROR') {
+                showToast(data.message);
+            }
+        }
+
+        // Mulai Game (Host Only)
+        btnStartGame.addEventListener('click', () => {
+            if (!isHost) return;
+            gameState.status = 'playing';
+            gameState.currentTurnIndex = 0;
+            gameState.players.forEach(p => p.position = 1);
+            addChatMessage('Sistem', '🎲 Permainan Dimulai! Giliran pertama: ' + gameState.players[0].name, true);
+            broadcastState();
+        });
+
+        // Lempar Dadu Process (Logika Utama Game)
+        btnRollDice.addEventListener('click', () => {
+            if (isHost) {
+                processDiceRoll(myId);
+            } else {
+                hostConn.send({ type: 'ROLL_DICE', playerId: myId });
+            }
+        });
+
+        function processDiceRoll(playerId) {
+            if (!isHost || gameState.status !== 'playing') return;
+
+            const currentPlayer = gameState.players[gameState.currentTurnIndex];
+            if (currentPlayer.id !== playerId) return;
+
+            const rolledValue = Math.floor(Math.random() * 6) + 1;
+            gameState.lastDiceRoll = rolledValue;
+
+            let newPos = currentPlayer.position + rolledValue;
+            let logMsg = `${currentPlayer.name} melempar dadu: 🎲 ${rolledValue}.`;
+
+            if (newPos > 100) {
+                logMsg += ` Melebihi 100, tidak bergerak.`;
+                newPos = currentPlayer.position;
+            }
+
+            let triggerTod = false;
+            if (SNAKES[newPos]) {
+                logMsg += ` 🐍 Ular! Turun ke ${SNAKES[newPos]}.`;
+                newPos = SNAKES[newPos];
+                triggerTod = true;
+            } else if (LADDERS[newPos]) {
+                logMsg += ` 🪜 Tangga! Naik ke ${LADDERS[newPos]}.`;
+                newPos = LADDERS[newPos];
+            }
+
+            if (!triggerTod && Math.random() < 0.25 && newPos < 100) {
+                triggerTod = true;
+            }
+
+            currentPlayer.position = newPos;
+
+            let isWinner = false;
+            if (newPos === 100) {
+                isWinner = true;
+                gameState.status = 'finished';
+                logMsg += ` 👑 SELAMAT! ${currentPlayer.name} MENANG!`;
+            }
+
+            addChatMessage('Sistem', logMsg, true);
+
+            if (triggerTod && !isWinner) {
+                const isTruth = Math.random() < 0.5;
+                const list = isTruth ? TRUTH_LIST : DARE_LIST;
+                const text = list[Math.floor(Math.random() * list.length)];
+                
+                openTodModal(currentPlayer, isTruth ? 'TRUTH' : 'DARE', text);
+                connections.forEach(c => c.send({
+                    type: 'TRIGGER_TOD',
+                    player: currentPlayer,
+                    todType: isTruth ? 'TRUTH' : 'DARE',
+                    todText: text
+                }));
+            }
+
+            if (!isWinner) {
+                gameState.currentTurnIndex = (gameState.currentTurnIndex + 1) % gameState.players.length;
+            }
+
+            broadcastState();
+        }
+
+        function openTodModal(player, type, text) {
+            todPlayerName.innerText = player.name;
+            todTypeBadge.innerText = type;
+            todText.innerText = `"${text}"`;
+            todModal.classList.remove('hidden');
+        }
+
+        btnCloseTod.addEventListener('click', () => {
+            todModal.classList.add('hidden');
+        });
+
+        // Chat Form Handler
+        chatForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const text = chatInput.value.trim();
+            if (!text) return;
+            chatInput.value = '';
+
+            addChatMessage(myName, text);
+            if (isHost) {
+                connections.forEach(c => c.send({ type: 'CHAT', sender: myName, text: text }));
+            } else {
+                hostConn.send({ type: 'SEND_CHAT', sender: myName, text: text });
+            }
+        });
+
+        // Voice Call WebRTC Logic
+        const btnToggleVoice = document.getElementById('btn-toggle-voice');
+        const btnToggleMute = document.getElementById('btn-toggle-mute');
+        const muteIcon = document.getElementById('mute-icon');
+        const voiceStatusText = document.getElementById('voice-status-text');
+        const voiceIconBg = document.getElementById('voice-icon-bg');
+
+        btnToggleVoice.addEventListener('click', async () => {
+            if (!isVoiceConnected) {
+                try {
+                    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    isVoiceConnected = true;
+
+                    voiceStatusText.innerText = "Aktif";
+                    voiceIconBg.className = "p-2 rounded-lg bg-emerald-500/20 text-emerald-400";
+                    btnToggleVoice.innerText = "Tutup";
+                    btnToggleVoice.className = "px-3 py-1.5 rounded-lg text-xs font-black bg-red-500 text-white transition";
+                    btnToggleMute.classList.remove('hidden');
+
+                    // Call all existing peers
+                    gameState.players.forEach(p => {
+                        if (p.id !== myId) {
+                            const call = peer.call(p.id, localStream);
+                            if (call) {
+                                call.on('stream', (remoteStream) => playAudio(call.peer, remoteStream));
+                            }
+                        }
+                    });
+
+                    showToast("Voice Call Aktif!");
+                } catch (err) {
+                    console.error(err);
+                    showToast("Izin mikrofon dibutuhkan!");
+                }
+            } else {
+                if (localStream) {
+                    localStream.getTracks().forEach(t => t.stop());
+                }
+                isVoiceConnected = false;
+                voiceStatusText.innerText = "Terputus";
+                voiceIconBg.className = "p-2 rounded-lg bg-slate-800 text-slate-500";
+                btnToggleVoice.innerText = "Masuk";
+                btnToggleVoice.className = "px-3 py-1.5 rounded-lg text-xs font-black bg-emerald-500 text-slate-950 transition";
+                btnToggleMute.classList.add('hidden');
+                showToast("Voice Call Ditutup.");
+            }
+        });
+
+        btnToggleMute.addEventListener('click', () => {
+            if (localStream) {
+                const track = localStream.getAudioTracks()[0];
+                if (track) {
+                    track.enabled = !track.enabled;
+                    isMuted = !track.enabled;
+                    muteIcon.className = isMuted ? "fa-solid fa-microphone-slash text-red-400" : "fa-solid fa-microphone";
+                }
+            }
+        });
+
+        function playAudio(peerId, stream) {
+            let audio = document.getElementById(`audio-${peerId}`);
+            if (!audio) {
+                audio = document.createElement('audio');
+                audio.id = `audio-${peerId}`;
+                audio.autoplay = true;
+                document.body.appendChild(audio);
+            }
+            audio.srcObject = stream;
+        }
+
+        // Copy Room Code & Leave Room
+        document.getElementById('btn-copy-room').addEventListener('click', () => {
+            navigator.clipboard.writeText(currentRoomCode);
+            showToast("Kode Room disalin!");
+        });
+
+        document.getElementById('btn-leave-room').addEventListener('click', () => {
+            location.reload();
+        });
+    </script>
+</body>
+</html>
+```
